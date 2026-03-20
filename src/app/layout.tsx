@@ -22,7 +22,18 @@ export const viewport: Viewport = {
 
 export const metadata: Metadata = {
   title: "コンビニAR",
-  description: "カメラで周りをコンビニに変えるARアプリ",
+  description: "カメラをかざすと、目の前がコンビニになるモバイルWeb ARアプリ",
+  openGraph: {
+    title: "コンビニAR",
+    description: "カメラをかざすと、目の前がコンビニになるモバイルWeb ARアプリ",
+    images: [{ url: "/og", width: 1200, height: 630 }],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "コンビニAR",
+    description: "カメラをかざすと、目の前がコンビニになるモバイルWeb ARアプリ",
+    images: ["/og"],
+  },
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",
