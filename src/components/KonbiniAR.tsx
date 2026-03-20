@@ -32,8 +32,11 @@ export default function KonbiniAR() {
   const modelRef = useRef<any>(null);
   const animationRef = useRef<number>(0);
   const lastDetectionTime = useRef<number>(0);
-  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const audioSevenRef = useRef<HTMLAudioElement | null>(null);
+  const audioLawsonRef = useRef<HTMLAudioElement | null>(null);
+  const audioFamimaRef = useRef<HTMLAudioElement | null>(null);
   const playedThresholds = useRef<Set<number>>(new Set());
+  const isAudioPlaying = useRef(false);
 
   const [isLoading, setIsLoading] = useState(true);
   const [loadingStep, setLoadingStep] = useState("カメラを起動中...");
@@ -241,15 +244,36 @@ export default function KonbiniAR() {
             newDetections.filter((d) => isKonbiniItem(d.label)).length
           );
 
-          // スコアが閾値を超えたらサウンド再生
+          // スコアが閾値を超えたらサウンド再生（再生中は新規再生しない）
           const thresholds = [20, 50, 80];
           for (const t of thresholds) {
-            if (rawScore >= t && !playedThresholds.current.has(t)) {
+            if (
+              rawScore >= t &&
+              !playedThresholds.current.has(t) &&
+              !isAudioPlaying.current
+            ) {
               playedThresholds.current.add(t);
-              if (audioRef.current) {
-                audioRef.current.currentTime = 0;
-                audioRef.current.play().catch(() => {});
+
+              // 検出された人物のブランドに応じて音を選択
+              const personDet = newDetections.find(
+                (d) => d.label === "person" && d.brand
+              );
+              const brand = personDet?.brand;
+              const audio =
+                brand === "seven"
+                  ? audioSevenRef.current
+                  : brand === "famima"
+                    ? audioFamimaRef.current
+                    : audioLawsonRef.current;
+
+              if (audio) {
+                isAudioPlaying.current = true;
+                audio.currentTime = 0;
+                audio.play().catch(() => {
+                  isAudioPlaying.current = false;
+                });
               }
+              break; // 1回の検出で1つだけ再生
             }
           }
           // スコアが下がったら閾値をリセット（再度鳴らせるように）
@@ -306,8 +330,25 @@ export default function KonbiniAR() {
 
   return (
     <div className="fixed inset-0 overflow-hidden bg-black select-none">
-      {/* サウンド */}
-      <audio ref={audioRef} src="/download.mp3" preload="auto" />
+      {/* サウンド（ブランド別） */}
+      <audio
+        ref={audioSevenRef}
+        src={encodeURI("/セブン.mp3")}
+        preload="auto"
+        onEnded={() => (isAudioPlaying.current = false)}
+      />
+      <audio
+        ref={audioLawsonRef}
+        src="/download.mp3"
+        preload="auto"
+        onEnded={() => (isAudioPlaying.current = false)}
+      />
+      <audio
+        ref={audioFamimaRef}
+        src={encodeURI("/ファミリーマート.mp3")}
+        preload="auto"
+        onEnded={() => (isAudioPlaying.current = false)}
+      />
 
       {/* Camera feed */}
       <video
