@@ -32,6 +32,8 @@ export default function KonbiniAR() {
   const modelRef = useRef<any>(null);
   const animationRef = useRef<number>(0);
   const lastDetectionTime = useRef<number>(0);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const playedThresholds = useRef<Set<number>>(new Set());
 
   const [isLoading, setIsLoading] = useState(true);
   const [loadingStep, setLoadingStep] = useState("カメラを起動中...");
@@ -238,6 +240,24 @@ export default function KonbiniAR() {
           setTotalDetected(
             newDetections.filter((d) => isKonbiniItem(d.label)).length
           );
+
+          // スコアが閾値を超えたらサウンド再生
+          const thresholds = [20, 50, 80];
+          for (const t of thresholds) {
+            if (rawScore >= t && !playedThresholds.current.has(t)) {
+              playedThresholds.current.add(t);
+              if (audioRef.current) {
+                audioRef.current.currentTime = 0;
+                audioRef.current.play().catch(() => {});
+              }
+            }
+          }
+          // スコアが下がったら閾値をリセット（再度鳴らせるように）
+          for (const t of thresholds) {
+            if (rawScore < t - 10) {
+              playedThresholds.current.delete(t);
+            }
+          }
         } catch (err) {
           console.error("Detection error:", err);
         }
@@ -286,6 +306,9 @@ export default function KonbiniAR() {
 
   return (
     <div className="fixed inset-0 overflow-hidden bg-black select-none">
+      {/* サウンド */}
+      <audio ref={audioRef} src="/download.mp3" preload="auto" />
+
       {/* Camera feed */}
       <video
         ref={videoRef}
