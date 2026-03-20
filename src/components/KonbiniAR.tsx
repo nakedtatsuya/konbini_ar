@@ -11,6 +11,7 @@ import {
   calculateKonbiniScore,
   type KonbiniItem,
 } from "@/lib/konbini";
+import KonbiniOverlay from "./KonbiniOverlay";
 
 interface Detection {
   id: string;
@@ -274,98 +275,8 @@ export default function KonbiniAR() {
         autoPlay
       />
 
-      {/* Fluorescent light overlay */}
-      <div
-        className="absolute inset-0 pointer-events-none transition-opacity duration-1000"
-        style={{
-          background:
-            "linear-gradient(180deg, rgba(200,220,255,0.12) 0%, transparent 30%, transparent 70%, rgba(200,220,255,0.08) 100%)",
-          opacity: scoreLevel === "low" ? 0 : smoothScore / 100,
-        }}
-      />
-
-      {/* Konbini color tint */}
-      <div
-        className="absolute inset-0 pointer-events-none transition-opacity duration-1000"
-        style={{
-          backgroundColor: "rgba(180, 220, 255, 0.06)",
-          opacity: smoothScore > 30 ? 1 : 0,
-        }}
-      />
-
-      {/* Shelf lines - left */}
-      {smoothScore > 40 && (
-        <div
-          className="absolute left-0 top-0 bottom-0 w-4 pointer-events-none"
-          style={{
-            opacity: Math.min((smoothScore - 40) / 30, 0.7),
-            background:
-              "repeating-linear-gradient(180deg, transparent, transparent 60px, rgba(200,180,150,0.5) 60px, rgba(200,180,150,0.5) 62px)",
-          }}
-        />
-      )}
-
-      {/* Shelf lines - right */}
-      {smoothScore > 40 && (
-        <div
-          className="absolute right-0 top-0 bottom-0 w-4 pointer-events-none"
-          style={{
-            opacity: Math.min((smoothScore - 40) / 30, 0.7),
-            background:
-              "repeating-linear-gradient(180deg, transparent, transparent 60px, rgba(200,180,150,0.5) 60px, rgba(200,180,150,0.5) 62px)",
-          }}
-        />
-      )}
-
-      {/* Floor tile effect */}
-      {smoothScore > 60 && (
-        <div
-          className="absolute bottom-0 left-0 right-0 h-20 pointer-events-none"
-          style={{
-            opacity: Math.min((smoothScore - 60) / 40, 0.3),
-            background:
-              "repeating-linear-gradient(90deg, transparent, transparent 40px, rgba(200,200,200,0.3) 40px, rgba(200,200,200,0.3) 42px)",
-          }}
-        />
-      )}
-
-      {/* Konbini sign */}
-      {smoothScore > 25 && (
-        <div
-          className="absolute top-0 left-0 right-0 flex justify-center pointer-events-none"
-          style={{
-            opacity: Math.min((smoothScore - 25) / 25, 1),
-            transform: `translateY(${Math.max(0, 30 - (smoothScore - 25))}px)`,
-            transition: "transform 0.5s ease-out",
-          }}
-        >
-          <div className="relative mt-12">
-            {/* Sign background */}
-            <div
-              className="px-6 py-2 rounded-lg shadow-lg border-2"
-              style={{
-                background:
-                  "linear-gradient(135deg, #00A860 0%, #007A45 100%)",
-                borderColor: "rgba(255,255,255,0.3)",
-              }}
-            >
-              <div className="text-white font-bold text-lg tracking-wider text-center">
-                コンビニAR
-              </div>
-              <div className="text-green-200 text-xs text-center tracking-widest">
-                24時間営業
-              </div>
-            </div>
-            {/* Sign glow */}
-            <div
-              className="absolute inset-0 rounded-lg"
-              style={{
-                boxShadow: "0 0 20px rgba(0,168,96,0.4)",
-              }}
-            />
-          </div>
-        </div>
-      )}
+      {/* コンビニ空間オーバーレイ */}
+      <KonbiniOverlay smoothScore={smoothScore} />
 
       {/* Detection overlays - Price tags */}
       {detections.map((det) => {
@@ -544,11 +455,6 @@ export default function KonbiniAR() {
           </div>
         </div>
       </div>
-
-      {/* Full transformation celebration */}
-      {scoreLevel === "max" && (
-        <div className="absolute inset-0 pointer-events-none border-4 border-yellow-400/50 animate-pulse" />
-      )}
 
       {/* Loading overlay */}
       {isLoading && (
