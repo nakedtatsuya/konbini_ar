@@ -1,36 +1,114 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# コンビニAR
 
-## Getting Started
+カメラをかざすと周囲がコンビニに変わるモバイルWeb ARアプリ。
 
-First, run the development server:
+**本番URL**: https://hackathonar.vercel.app
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+## コンセプト
+
+スマホのカメラで身の回りを映すと、AIが「コンビニにありそうな物体」を検出し、検出数に応じて画面がリアルタイムにコンビニ空間へ変身していく。人物を検出した場合は服の色を解析し、セブン-イレブン / ローソン / ファミリーマートのユニフォーム（エプロン）をAR表示する。
+
+## 技術スタック
+
+| 技術 | 用途 |
+|---|---|
+| Next.js 16 (App Router) | フレームワーク |
+| TypeScript | 型安全 |
+| Tailwind CSS | スタイリング |
+| TensorFlow.js + COCO-SSD | リアルタイム物体認識（ブラウザ上で実行） |
+| Canvas API | 服の色のピクセルサンプリング |
+| SVG (インラインReactコンポーネント) | AR演出の描画（エプロン、看板、棚、レジ等） |
+| Vercel | ホスティング・デプロイ |
+
+## アーキテクチャ
+
+```
+カメラ映像 (getUserMedia)
+    │
+    ├─→ COCO-SSD 物体認識 (400ms間隔)
+    │       │
+    │       ├─→ コンビニ商品判定 → 値札オーバーレイ
+    │       ├─→ 人物検出 → Canvas色解析 → ブランド判定 → ユニフォームSVG
+    │       └─→ コンビニ度スコア算出
+    │
+    └─→ スコアに応じた段階的AR演出 (KonbiniOverlay)
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+### コンビニ度スコアの計算
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+- 検出アイテム数 × 15点（最大60点）
+- ユニークカテゴリ数 × 15点（最大40点）
+- 合計100点満点
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+### ユニフォームのブランド判定
 
-## Learn More
+1. 人物bboxの胴体中央部分をCanvasに描画
+2. ピクセルをサンプリングして平均色をHSLに変換
+3. 色相(Hue)でブランドを分類:
+   - 赤/オレンジ (H: 0-40, 340-360) → セブン-イレブン
+   - 青 (H: 200-260) → ローソン
+   - 緑 (H: 80-170) → ファミリーマート
+   - 無彩色は明度で判定（明るい→セブン、暗い→ローソン）
 
-To learn more about Next.js, take a look at the following resources:
+## AR演出の段階
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+| スコア | 出現する要素 |
+|--------|-------------|
+| 8%~    | 自動ドアフレーム（アルミサッシ風グラデーション） |
+| 12%~   | 蛍光灯（SVG管 + グロー + 光の拡散） |
+| 18%~   | 看板（セブン風3色ストライプ + ネオングロー） |
+| 25%~   | 左右の商品棚（6段 × カラフルな商品SVG） |
+| 30%~   | 床タイル（SVGパターン） |
+| 35%~   | レジカウンター（LCD画面、バーコードリーダー、NFC端末、ポイントカード） |
+| 45%~   | おでんケース（SVGアニメ湯気付き） |
+| 50%~   | 中華まんケース（4種 + 湯気アニメ） |
+| 60%~   | コーヒーマシン（HOT/ICEボタン） |
+| 62%~   | ATM（画面、カードスロット、テンキー） |
+| 80%~   | 全変身エフェクト（金色グロー） |
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+人物検出時は上記に加えて、ブランド別エプロン + 名札 + 「いらっしゃいませ〜！」吹き出しを表示。
 
-## Deploy on Vercel
+## ディレクトリ構成
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+```
+src/
+├── app/
+│   ├── layout.tsx          # ルートレイアウト（モバイル向けviewport設定）
+│   ├── page.tsx            # ランディング画面 → AR画面の切り替え
+│   └── globals.css         # グローバルスタイル（スクロール無効化等）
+├── components/
+│   ├── KonbiniAR.tsx       # メインARコンポーネント
+│   │                        カメラ初期化、TF.jsモデル読込、
+│   │                        検出ループ、スコア管理、全体レイアウト
+│   ├── KonbiniOverlay.tsx  # コンビニ空間のAR演出（SVGベース）
+│   │                        看板、棚、レジ、おでん、ATM等
+│   └── KonbiniUniform.tsx  # コンビニユニフォーム（SVGエプロン）
+│                            ブランド別デザイン（セブン/ローソン/ファミマ）
+└── lib/
+    ├── konbini.ts          # コンビニ商品マッピング（30種+特殊3種）、
+    │                        カテゴリ色、スコア計算ロジック
+    └── colorAnalysis.ts    # 服の色解析（Canvas → RGB → HSL → ブランド判定）
+```
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## 設計方針
+
+- **画像アセット不要**: 全てのAR演出をSVG + CSS + HTMLで描画。外部画像への依存なし
+- **モバイルファースト**: `object-fit: cover`でフルスクリーンカメラ、スクロール無効化、`user-scalable=no`
+- **パフォーマンス考慮**: COCO-SSD `lite_mobilenet_v2` モデル使用、検出は400ms間隔、スコアはスムージング処理
+- **段階的演出**: スコアに応じてAR要素を徐々に出現させ、「変身していく」体験を実現
+- **座標変換**: 動画の解像度とスクリーンサイズの差を `object-fit: cover` 基準で正しく変換
+
+## ローカル開発
+
+```bash
+npm install
+npm run dev
+```
+
+http://localhost:3000 をモバイルブラウザで開く（カメラアクセスにはHTTPSが必要なため、実機テストはVercelデプロイ版を推奨）。
+
+## デプロイ
+
+```bash
+npx vercel --prod
+```
