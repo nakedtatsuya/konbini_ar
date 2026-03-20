@@ -11,19 +11,24 @@ import {
   calculateKonbiniScore,
   type KonbiniItem,
 } from "@/lib/konbini";
+import { getDominantHSL, classifyBrand } from "@/lib/colorAnalysis";
 import KonbiniOverlay from "./KonbiniOverlay";
+import KonbiniUniform, { type KonbiniBrand } from "./KonbiniUniform";
 
 interface Detection {
   id: string;
   label: string;
   score: number;
   bbox: [number, number, number, number];
+  videoBbox: [number, number, number, number];
   konbiniItem: KonbiniItem | null;
   specialMessage: string | null;
+  brand: KonbiniBrand | null;
 }
 
 export default function KonbiniAR() {
   const videoRef = useRef<HTMLVideoElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const modelRef = useRef<any>(null);
   const animationRef = useRef<number>(0);
   const lastDetectionTime = useRef<number>(0);
@@ -33,7 +38,6 @@ export default function KonbiniAR() {
   const [detections, setDetections] = useState<Detection[]>([]);
   const [konbiniScore, setKonbiniScore] = useState(0);
   const [smoothScore, setSmoothScore] = useState(0);
-  const [welcomeMessage, setWelcomeMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [totalDetected, setTotalDetected] = useState(0);
 
@@ -107,6 +111,11 @@ export default function KonbiniAR() {
         if (videoRef.current) {
           videoRef.current.srcObject = stream;
           await videoRef.current.play();
+        }
+
+        // 色解析用キャンバス
+        if (!canvasRef.current) {
+          canvasRef.current = document.createElement("canvas");
         }
 
         setLoadingStep("AIモデルを読み込み中...");
@@ -185,30 +194,41 @@ export default function KonbiniAR() {
                 video.videoWidth,
                 video.videoHeight
               );
+              const videoBbox: [number, number, number, number] = [
+                p.bbox[0],
+                p.bbox[1],
+                p.bbox[2],
+                p.bbox[3],
+              ];
               const item = KONBINI_ITEMS[p.class] || null;
               const special = SPECIAL_DETECTIONS[p.class] || null;
+
+              // 人物検出時に服の色からブランド判定
+              let brand: KonbiniBrand | null = null;
+              if (p.class === "person" && canvasRef.current) {
+                const hsl = getDominantHSL(
+                  video,
+                  canvasRef.current,
+                  videoBbox
+                );
+                if (hsl) {
+                  brand = classifyBrand(hsl);
+                }
+              }
 
               return {
                 id: `${p.class}-${i}`,
                 label: p.class,
                 score: p.score,
                 bbox,
+                videoBbox,
                 konbiniItem: item,
                 specialMessage: special?.message || null,
+                brand,
               };
             });
 
           setDetections(newDetections);
-
-          // Welcome message for person detection
-          const personDet = newDetections.find(
-            (d) => d.label === "person" && d.score > 0.5
-          );
-          if (personDet) {
-            setWelcomeMessage("いらっしゃいませ！");
-          } else {
-            setWelcomeMessage(null);
-          }
 
           // Update scores
           const rawScore = calculateKonbiniScore(
@@ -345,9 +365,20 @@ export default function KonbiniAR() {
         );
       })}
 
-      {/* Special detection messages (person, cat, dog) */}
+      {/* 人物にコンビニユニフォーム */}
       {detections
-        .filter((d) => isSpecialDetection(d.label))
+        .filter((d) => d.label === "person" && d.brand)
+        .map((det) => (
+          <KonbiniUniform
+            key={`uniform-${det.id}`}
+            brand={det.brand!}
+            bbox={det.bbox}
+          />
+        ))}
+
+      {/* Special detection messages (cat, dog) */}
+      {detections
+        .filter((d) => isSpecialDetection(d.label) && d.label !== "person")
         .map((det) => {
           const [x, y, w] = det.bbox;
           return (
@@ -366,15 +397,6 @@ export default function KonbiniAR() {
             </div>
           );
         })}
-
-      {/* Welcome message */}
-      {welcomeMessage && smoothScore > 30 && (
-        <div className="absolute top-28 left-0 right-0 flex justify-center pointer-events-none animate-pulse">
-          <div className="bg-white/90 backdrop-blur-sm text-green-700 font-bold text-xl px-6 py-2 rounded-full shadow-lg">
-            {welcomeMessage}
-          </div>
-        </div>
-      )}
 
       {/* Konbini score meter */}
       <div className="absolute bottom-6 left-4 right-4 pointer-events-none">
